@@ -1,0 +1,16 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>resources/back.png</file>
+        <file>resources/begin.png</file>
+        <file>resources/end.png</file>
+        <file>resources/fwd.png</file>
+        <file>resources/pause.png</file>
+        <file>resources/play.png</file>
+        <file>resources/export.png</file>
+        <file>resources/import.png</file>
+        <file>resources/media.png</file>
+        <file>resources/new.png</file>
+        <file>resources/open.png</file>
+        <file>resources/save.png</file>
+    </qresource>
+</RCC>
