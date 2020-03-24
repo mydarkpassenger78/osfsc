@@ -8,7 +8,8 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 class MainWindow;
-class QMediaPlayer;
+
+#include <QMediaPlayer>
 
 class VideoController : public QObject
 {
@@ -29,6 +30,8 @@ public slots:
     void DurationChanged(quint64 duration);
     void SpeedSliderChanged(int value);
     void PositionSliderReleased();
+
+    void MediaError(QMediaPlayer::Error error);
 
     void ToBegin();
     void ToEnd();

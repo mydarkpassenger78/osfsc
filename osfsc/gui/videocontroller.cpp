@@ -2,7 +2,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <QMediaPlayer>
+#include <QMessageBox>
+#include <QDesktopServices>
+#include <QPushButton>
 
 VideoController::VideoController(Ui::MainWindow *ui, MainWindow *parent) : QObject(parent), m_Ui(ui)
 {
@@ -30,6 +32,7 @@ void VideoController::CreateMediaPlayer()
     connect(m_MediaPlayer, &QMediaPlayer::durationChanged, this, &VideoController::DurationChanged);
     connect(m_MediaPlayer, &QMediaPlayer::positionChanged, m_Ui->videoPosition, &QSlider::setValue);
     connect(m_Ui->videoPosition, &QSlider::sliderMoved, m_MediaPlayer, &QMediaPlayer::setPosition);
+    connect(m_MediaPlayer, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error), this, &VideoController::MediaError);
 }
 
 void VideoController::AppQuit()
@@ -143,4 +146,62 @@ void VideoController::BackFrame()
 void VideoController::FwdFrame()
 {
     m_MediaPlayer->setPosition(m_Ui->videoPosition->value()+1000);
+}
+
+void VideoController::MediaError(QMediaPlayer::Error error)
+{
+    QMessageBox box;
+    bool codecLink = false;
+    QAbstractButton *codecButton = nullptr;
+
+    box.setIcon(QMessageBox::Icon::Critical);
+    switch(error)
+    {
+    case QMediaPlayer::NoError:
+        box.setText("Media error: no error");
+        break;
+
+    case QMediaPlayer::ResourceError:
+        box.setText("Media error: A media resource couldn't be resolved");
+        codecLink = true;
+        break;
+
+    case QMediaPlayer::FormatError:
+        box.setText("Media error: The format of a media resource isn't (fully) supported.");
+        codecLink = true;
+        break;
+
+    case QMediaPlayer::NetworkError:
+        box.setText("Media error: network error");
+        break;
+
+    case QMediaPlayer::AccessDeniedError:
+        box.setText("Media error: access denied");
+        break;
+
+    case QMediaPlayer::ServiceMissingError:
+        box.setText("Media error: A valid playback service was not found, playback cannot proceed.");
+        break;
+
+    case QMediaPlayer::MediaIsPlaylist:
+        box.setText("Media error: media is a playlist");
+        break;
+
+    default:
+        box.setText("Media error: unknown error");
+    }
+
+    box.addButton(QMessageBox::Ok);
+    if (codecLink)
+    {
+        box.setDetailedText("Error might be resolved by installing extra media codecs, from for example https://www.codecguide.com/download_kl.htm");
+        codecButton = box.addButton(tr("find codec..."), QMessageBox::ActionRole);
+    }
+    box.setDefaultButton(QMessageBox::Ok);
+    box.exec();
+
+    if (codecLink && (box.clickedButton() == codecButton))
+    {
+        QDesktopServices::openUrl (QUrl("https://www.codecguide.com/download_kl.htm"));
+    }
 }
