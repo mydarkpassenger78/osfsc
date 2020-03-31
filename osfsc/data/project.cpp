@@ -9,7 +9,7 @@
 const quint32 Project::c_Magic = 0x84b26d3e;
 const quint32 Project::c_CurrentVersion = 0x100;
 
-Project::Project(Ui::MainWindow *ui, QObject *parent) : QObject(parent)
+Project::Project(Ui::MainWindow *ui, QObject *parent) : QObject(parent), m_Ui(ui)
 {
     connect(ui->action_New, &QAction::triggered, this, &Project::New);
     connect(ui->actionSave, &QAction::triggered, this, &Project::Save);
@@ -42,6 +42,11 @@ void Project::Open(QString fileName)
         if (fileContents.contains("video"))
         {
             m_VideoFileName = fileContents["video"].toString();
+
+            if (fileContents.contains("position"))
+            {
+                emit VideoSetPos(fileContents["position"].toInt());
+            }
 
             emit NewVideo(m_VideoFileName);
         }
@@ -76,6 +81,7 @@ void Project::Save()
         if (!m_VideoFileName.isEmpty())
         {
             fileContents.insert("video", m_VideoFileName);
+            fileContents.insert("position", m_Ui->videoPosition->value());
         }
 
         out << fileContents;

@@ -35,6 +35,8 @@ add_executable(osfsc
     gui/mainwindow.ui
     gui/videocontroller.h
     gui/videocontroller.cpp
+    gui/applicationpaths.h
+    gui/applicationpaths.cpp
     data/project.h
     data/project.cpp
     icons.qrc

@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QPushButton>
+#include <QtGlobal>
 
 VideoController::VideoController(Ui::MainWindow *ui, MainWindow *parent) : QObject(parent), m_Ui(ui)
 {
@@ -12,16 +13,17 @@ VideoController::VideoController(Ui::MainWindow *ui, MainWindow *parent) : QObje
     connect(m_Ui->videoPauseButton, &QToolButton::clicked, this, &VideoController::Pause);
 
     connect(m_Ui->speedSlider, &QAbstractSlider::valueChanged, this, &VideoController::SpeedSliderChanged);
-    connect(m_Ui->videoPosition, &QAbstractSlider::sliderReleased, this, &VideoController::PositionSliderReleased);
 
-    connect(m_Ui->videoBeginButton, &QToolButton::clicked, this, &VideoController::ToBegin);
-    connect(m_Ui->videoEndButton, &QToolButton::clicked, this, &VideoController::ToEnd);
+    connect(m_Ui->videoBack10Button, &QToolButton::clicked, this, &VideoController::Back10);
+    connect(m_Ui->videoFwd10Button, &QToolButton::clicked, this, &VideoController::Fwd10);
     connect(m_Ui->videoFwdButton, &QToolButton::clicked, this, &VideoController::FwdFrame);
     connect(m_Ui->videoBackButton, &QToolButton::clicked, this, &VideoController::BackFrame);
 
     CreateMediaPlayer();
 
     NoVideo();
+
+    m_PosAdjustNeeded = false;
 }
 
 void VideoController::CreateMediaPlayer()
@@ -29,10 +31,32 @@ void VideoController::CreateMediaPlayer()
     m_MediaPlayer = new QMediaPlayer(this);
     m_MediaPlayer->setVideoOutput(m_Ui->videoWidget);
 
+    SetVolume();
+
     connect(m_MediaPlayer, &QMediaPlayer::durationChanged, this, &VideoController::DurationChanged);
     connect(m_MediaPlayer, &QMediaPlayer::positionChanged, m_Ui->videoPosition, &QSlider::setValue);
     connect(m_Ui->videoPosition, &QSlider::sliderMoved, m_MediaPlayer, &QMediaPlayer::setPosition);
+    connect(m_Ui->volumeEnable, &QCheckBox::stateChanged, this, &VideoController::VolumeEnableChanged);
+    connect(m_Ui->volumeSlider, &QSlider::sliderMoved, this, &VideoController::VolumeValueChanged);
+
     connect(m_MediaPlayer, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error), this, &VideoController::MediaError);
+}
+
+void VideoController::SetVolume()
+{
+    if (m_MediaPlayer != nullptr)
+    {
+        if (m_Ui->volumeEnable->isChecked())
+        {
+            m_Ui->volumeSlider->setEnabled(true);
+            m_MediaPlayer->setVolume(m_Ui->volumeSlider->value());
+        }
+        else
+        {
+            m_Ui->volumeSlider->setEnabled(false);
+            m_MediaPlayer->setVolume(0);
+        }
+    }
 }
 
 void VideoController::AppQuit()
@@ -67,6 +91,12 @@ void VideoController::NewVideo(QString path)
     m_MediaPlayer->setPosition(0);
 }
 
+void VideoController::VideoSetPos(int newPosition)
+{
+    m_PosAdjustNeeded = true;
+    m_PosAdjust = newPosition;
+}
+
 void VideoController::Play()
 {
     m_Ui->speedSlider->setValue(10);
@@ -80,6 +110,13 @@ void VideoController::Pause()
 void VideoController::DurationChanged(quint64 duration)
 {
     m_Ui->videoPosition->setRange(0, duration);
+
+    if (m_PosAdjustNeeded)
+    {
+        m_MediaPlayer->setPosition(m_PosAdjust);
+    }
+
+    m_PosAdjustNeeded = false;
 }
 
 void VideoController::SpeedSliderChanged(int value)
@@ -110,23 +147,39 @@ void VideoController::SpeedSliderChanged(int value)
     }
 }
 
-void VideoController::PositionSliderReleased()
+void VideoController::VolumeEnableChanged(int state)
 {
+    Q_UNUSED(state)
+
+    SetVolume();
+}
+
+void VideoController::VolumeValueChanged(int value)
+{
+    Q_UNUSED(value)
+
+    SetVolume();
+}
+
+static const int delta10s = 10000;
+
+void VideoController::Back10()
+{
+    int position = m_Ui->videoPosition->value();
     if (m_ValidVideo)
     {
-        m_MediaPlayer->setPosition(m_Ui->videoPosition->value());
+        if (position < delta10s)
+        {
+            m_MediaPlayer->setPosition(0);
+        }
+        else
+        {
+            m_MediaPlayer->setPosition(position-delta10s);
+        }
     }
 }
 
-void VideoController::ToBegin()
-{
-    if (m_ValidVideo)
-    {
-        m_MediaPlayer->setPosition(0);
-    }
-}
-
-void VideoController::ToEnd()
+void VideoController::Fwd10()
 {
     if (m_ValidVideo)
     {
@@ -134,18 +187,67 @@ void VideoController::ToEnd()
 
         if (duration.isValid())
         {
-            m_MediaPlayer->setPosition(duration.toInt()-1);
+            int end = duration.toInt()-1;
+            int position = m_Ui->videoPosition->value();
+
+            if (position > end-delta10s)
+            {
+                m_MediaPlayer->setPosition(end);
+            }
+            else
+            {
+                m_MediaPlayer->setPosition(position+delta10s);
+            }
         }
     }
 }
+
 void VideoController::BackFrame()
 {
-    m_MediaPlayer->setPosition(m_Ui->videoPosition->value()-1000);
+    if (m_ValidVideo)
+    {
+        QVariant rate = m_MediaPlayer->metaData("VideoFrameRate");
+
+        if (rate.isValid())
+        {
+            int frameduration = 1000/rate.toInt()+1;
+            int position = m_Ui->videoPosition->value();
+
+            if (position<frameduration)
+            {
+                m_MediaPlayer->setPosition(0);
+            }
+            else
+            {
+                m_MediaPlayer->setPosition(position-frameduration);
+            }
+        }
+    }
 }
 
 void VideoController::FwdFrame()
 {
-    m_MediaPlayer->setPosition(m_Ui->videoPosition->value()+1000);
+    if (m_ValidVideo)
+    {
+        QVariant duration = m_MediaPlayer->metaData("Duration");
+        QVariant rate = m_MediaPlayer->metaData("VideoFrameRate");
+
+        if (duration.isValid() && rate.isValid())
+        {
+            int end = duration.toInt()-1;
+            int frameduration = 1000/rate.toInt()+1;
+            int position = m_Ui->videoPosition->value();
+
+            if (position > end-frameduration)
+            {
+                m_MediaPlayer->setPosition(end);
+            }
+            else
+            {
+                m_MediaPlayer->setPosition(position+frameduration);
+            }
+        }
+    }
 }
 
 void VideoController::MediaError(QMediaPlayer::Error error)
@@ -192,11 +294,13 @@ void VideoController::MediaError(QMediaPlayer::Error error)
     }
 
     box.addButton(QMessageBox::Ok);
+#ifdef Q_OS_WINDOWS
     if (codecLink)
     {
         box.setDetailedText("Error might be resolved by installing extra media codecs, from for example https://www.codecguide.com/download_kl.htm");
         codecButton = box.addButton(tr("find codec..."), QMessageBox::ActionRole);
     }
+#endif
     box.setDefaultButton(QMessageBox::Ok);
     box.exec();
 

@@ -17,7 +17,8 @@ public:
 signals:
     void NoVideo();
     void NewVideo(QString path);
-    void ActivateSaveAction(bool hasFileName);
+    void VideoSetPos(int position);
+    void ActivateSaveAction(bool state);
 
 public slots:
     void New();
@@ -33,6 +34,8 @@ private:
     QString m_FileName;
     QString m_VideoFileName;
     bool m_Modified;
+
+    Ui::MainWindow *m_Ui;
 
     static const quint32 c_Magic;
     static const quint32 c_CurrentVersion;
